@@ -468,36 +468,49 @@ async function loadData() {
   const area = document.getElementById('main-area');
   area.innerHTML = '<div class="loading">LOADING...</div>';
 
-  const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=Sheet1`;
-  try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('fetch failed');
-    const text = await res.text();
-    const json = JSON.parse(text.replace(/^.*?({.+})\s*\);?\s*$/, '$1'));
-    const rows = json.table.rows;
-    const cols = json.table.cols.map(c => c.label.toLowerCase().trim());
+  // Try both English and Japanese sheet names
+  const sheetNames = ['Sheet1', 'シート1', ''];
+  let lastError = null;
 
-    const idx = k => cols.indexOf(k);
-    entries = rows.map(r => ({
-      title:    cell(r, idx('title')),
-      cat:      cell(r, idx('category')) || 'other',
-      prompt:   cell(r, idx('prompt')),
-      dur:      cell(r, idx('duration')),
-      ratio:    cell(r, idx('ratio')),
-      strength: cell(r, idx('strength')),
-      media:    cell(r, idx('media')),
-      note:     cell(r, idx('note')),
-      tags:     (cell(r, idx('tags')) || '').split(',').map(t=>t.trim()).filter(Boolean),
-    })).filter(e => e.title && e.prompt);
+  for (const name of sheetNames) {
+    const url = name
+      ? `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(name)}`
+      : `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json`;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      const text = await res.text();
+      if (text.includes('"status":"error"') || text.includes("You need to enable")) continue;
+      const json = JSON.parse(text.replace(/^.*?({.+})\s*\);?\s*$/, '$1'));
+      if (!json.table) continue;
+      const rows = json.table.rows || [];
+      const cols = json.table.cols.map(c => c.label.toLowerCase().trim());
 
-    renderGrid();
-  } catch(e) {
-    area.innerHTML = `
-      <div style="padding:2rem;">
-        <div class="error-bar show">スプレッドシートを読み込めませんでした。IDと公開設定を確認してください。</div>
-        <button class="config-btn" onclick="showConfig()">設定を変更する</button>
-      </div>`;
+      const idx = k => cols.indexOf(k);
+      entries = rows.map(r => ({
+        title:    cell(r, idx('title')),
+        cat:      cell(r, idx('category')) || 'other',
+        prompt:   cell(r, idx('prompt')),
+        dur:      cell(r, idx('duration')),
+        ratio:    cell(r, idx('ratio')),
+        strength: cell(r, idx('strength')),
+        media:    cell(r, idx('media')),
+        note:     cell(r, idx('note')),
+        tags:     (cell(r, idx('tags')) || '').split(',').map(t=>t.trim()).filter(Boolean),
+      })).filter(e => e.title && e.prompt);
+
+      renderGrid();
+      return;
+    } catch(e) {
+      lastError = e;
+    }
   }
+
+  area.innerHTML = `
+    <div style="padding:2rem;">
+      <div class="error-bar show">スプレッドシートを読み込めませんでした。IDと公開設定を確認してください。</div>
+      <button class="config-btn" onclick="showConfig()">設定を変更する</button>
+    </div>`;
 }
 
 function cell(row, i) {
