@@ -468,58 +468,64 @@ async function loadData() {
   const area = document.getElementById('main-area');
   area.innerHTML = '<div class="loading">LOADING...</div>';
 
-  // Try both English and Japanese sheet names
-  const sheetNames = ['Sheet1', 'シート1', ''];
-  let lastError = null;
+  // Use CSV export URL (works with public sheets, no CORS issues)
+  const gid = '0'; // default first sheet
+  const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('fetch failed');
+    const text = await res.text();
+    if (text.includes('Sign in') || text.includes('ログイン')) throw new Error('not public');
 
-  for (const name of sheetNames) {
-    const url = name
-      ? `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(name)}`
-      : `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json`;
-    try {
-      const res = await fetch(url);
-      if (!res.ok) continue;
-      const text = await res.text();
-      if (text.includes('"status":"error"') || text.includes("You need to enable")) continue;
-      const json = JSON.parse(text.replace(/^.*?({.+})\s*\);?\s*$/, '$1'));
-      if (!json.table) continue;
-      let rows = json.table.rows || [];
-      let cols = json.table.cols.map(c => c.label.toLowerCase().trim());
-      if (json.table.parsedNumHeaders === 0 && rows.length > 0) {
-        const hr = rows[0];
-        cols = (hr.c || []).map(c => c ? (c.v||'').toString().toLowerCase().trim() : '');
-        rows = rows.slice(1);
-      }
-      const idx = k => cols.indexOf(k);
-      entries = rows.map(r => ({
-        title:    cell(r, idx('title')),
-        cat:      cell(r, idx('category')) || 'other',
-        prompt:   cell(r, idx('prompt')),
-        dur:      cell(r, idx('duration')),
-        ratio:    cell(r, idx('ratio')),
-        strength: cell(r, idx('strength')),
-        media:    cell(r, idx('media')),
-        note:     cell(r, idx('note')),
-        tags:     (cell(r, idx('tags')) || '').split(',').map(t=>t.trim()).filter(Boolean),
-      })).filter(e => e.title && e.prompt);
+    const rows = parseCSV(text);
+    if (rows.length < 2) throw new Error('no data');
 
-      renderGrid();
-      return;
-    } catch(e) {
-      lastError = e;
-    }
+    const cols = rows[0].map(h => h.toLowerCase().trim());
+    const idx = k => cols.indexOf(k);
+    entries = rows.slice(1).map(r => ({
+      title:    r[idx('title')] || '',
+      cat:      r[idx('category')] || 'other',
+      prompt:   r[idx('prompt')] || '',
+      dur:      r[idx('duration')] || '',
+      ratio:    r[idx('ratio')] || '',
+      strength: r[idx('strength')] || '',
+      media:    r[idx('media')] || '',
+      note:     r[idx('note')] || '',
+      tags:     (r[idx('tags')] || '').split(',').map(t=>t.trim()).filter(Boolean),
+    })).filter(e => e.title && e.prompt);
+
+    renderGrid();
+  } catch(e) {
+    area.innerHTML = `
+      <div style="padding:2rem;">
+        <div class="error-bar show">スプレッドシートを読み込めませんでした。IDと公開設定を確認してください。</div>
+        <button class="config-btn" onclick="showConfig()">設定を変更する</button>
+      </div>`;
   }
-
-  area.innerHTML = `
-    <div style="padding:2rem;">
-      <div class="error-bar show">スプレッドシートを読み込めませんでした。IDと公開設定を確認してください。</div>
-      <button class="config-btn" onclick="showConfig()">設定を変更する</button>
-    </div>`;
 }
 
-function cell(row, i) {
-  if (i < 0 || !row.c || !row.c[i]) return '';
-  return (row.c[i].v ?? row.c[i].f ?? '').toString().trim();
+function parseCSV(text) {
+  const rows = [];
+  let row = [], field = '', inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i], next = text[i+1];
+    if (inQ) {
+      if (ch === '"' && next === '"') { field += '"'; i++; }
+      else if (ch === '"') inQ = false;
+      else field += ch;
+    } else {
+      if (ch === '"') inQ = true;
+      else if (ch === ',') { row.push(field); field = ''; }
+      else if (ch === '\n' || (ch === '\r' && next === '\n')) {
+        row.push(field); field = '';
+        if (row.some(c => c)) rows.push(row);
+        row = [];
+        if (ch === '\r') i++;
+      } else field += ch;
+    }
+  }
+  if (field || row.length) { row.push(field); if (row.some(c=>c)) rows.push(row); }
+  return rows;
 }
 
 // ── Tab / filter ──────────────────────────────────────
