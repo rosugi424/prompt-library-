@@ -375,10 +375,42 @@
   }
   .config-btn:hover { opacity: 0.85; }
 
+  .tag-filter-bar {
+    padding: 0.75rem 2rem;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+    min-height: 44px;
+  }
+  .tag-filter-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-right: 4px;
+    flex-shrink: 0;
+  }
+  .tag-btn {
+    font-size: 12px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: var(--sans);
+  }
+  .tag-btn:hover { border-color: var(--border-hover); color: var(--text); }
+  .tag-btn.active { background: var(--accent-dim); border-color: rgba(200,240,96,0.3); color: var(--accent); }
   @media (max-width: 600px) {
     header { padding: 1rem; }
     main { padding: 1rem; }
     .tabs { padding: 0.75rem 1rem 0; }
+    .tag-filter-bar { padding: 0.75rem 1rem; }
     #search { width: 160px; }
     .grid { grid-template-columns: 1fr; }
   }
@@ -400,6 +432,10 @@
   <button class="tab" data-cat="char" onclick="setTab(this)">キャラクター</button>
   <button class="tab" data-cat="scene" onclick="setTab(this)">シーン・背景</button>
   <button class="tab" data-cat="other" onclick="setTab(this)">その他</button>
+</div>
+
+<div class="tag-filter-bar" id="tag-bar">
+  <!-- tags rendered here -->
 </div>
 
 <main id="main-area">
@@ -425,6 +461,7 @@ const CAT_MAP = {
 
 let entries = [];
 let currentTab = 'all';
+let selectedTags = new Set();
 let sheetId = localStorage.getItem(SHEET_ID_KEY) || '';
 
 // ── Init ──────────────────────────────────────────────
@@ -494,6 +531,7 @@ async function loadData() {
       tags:     (r[idx('tags')] || '').split(',').map(t=>t.trim()).filter(Boolean),
     })).filter(e => e.title && e.prompt);
 
+    renderTagBar();
     renderGrid();
   } catch(e) {
     area.innerHTML = `
@@ -533,10 +571,34 @@ function setTab(el) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
   currentTab = el.dataset.cat;
+  selectedTags.clear();
+  renderTagBar();
   renderGrid();
 }
 
 function filterRender() { renderGrid(); }
+
+function renderTagBar() {
+  const bar = document.getElementById('tag-bar');
+  if (!bar) return;
+  // Collect all tags from current category
+  const tagCounts = {};
+  entries.forEach(e => {
+    if (currentTab !== 'all' && e.cat !== currentTab) return;
+    e.tags.forEach(t => { if (t) tagCounts[t] = (tagCounts[t] || 0) + 1; });
+  });
+  const tags = Object.keys(tagCounts).sort();
+  if (!tags.length) { bar.innerHTML = ''; return; }
+  bar.innerHTML = '<span class="tag-filter-label">タグ</span>' +
+    tags.map(t => `<button class="tag-btn${selectedTags.has(t) ? ' active' : ''}" onclick="toggleTag('${t}')">${t}</button>`).join('');
+}
+
+function toggleTag(t) {
+  if (selectedTags.has(t)) selectedTags.delete(t);
+  else selectedTags.add(t);
+  renderTagBar();
+  renderGrid();
+}
 
 // ── Grid render ───────────────────────────────────────
 function renderGrid() {
@@ -548,6 +610,9 @@ function renderGrid() {
     if (q) {
       const haystack = [e.title, e.prompt, e.note, e.tags.join(' ')].join(' ').toLowerCase();
       if (!haystack.includes(q)) return false;
+    }
+    if (selectedTags.size > 0) {
+      if (![...selectedTags].every(t => e.tags.includes(t))) return false;
     }
     return true;
   });
