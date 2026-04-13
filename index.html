@@ -625,13 +625,16 @@ function renderGrid() {
   const cards = list.map((e, i) => {
     const [bcls, blabel] = CAT_MAP[e.cat] || ['cat-other','Other'];
     const isVid = e.media && /\.(mp4|webm|mov)/i.test(e.media);
+    const isGD = isGDrive(e.media);
     let thumb = '';
-    if (e.media && !isVid) {
-      thumb = `<div class="thumb"><img src="${e.media}" loading="lazy" onerror="this.parentNode.innerHTML='<span class=thumb-empty>NO MEDIA</span>'"></div>`;
+    if (!e.media) {
+      thumb = `<div class="thumb"><span class="thumb-empty">NO MEDIA</span></div>`;
+    } else if (isGD) {
+      thumb = `<div class="thumb"><img src="${driveUrl(e.media,'thumb')}" loading="lazy" onerror="this.parentNode.innerHTML='<span class=thumb-empty>DRIVE</span>'"><span class="play">▶</span></div>`;
     } else if (isVid) {
       thumb = `<div class="thumb"><video src="${e.media}" muted preload="none"></video><span class="play">▶</span></div>`;
     } else {
-      thumb = `<div class="thumb"><span class="thumb-empty">NO MEDIA</span></div>`;
+      thumb = `<div class="thumb"><img src="${e.media}" loading="lazy" onerror="this.parentNode.innerHTML='<span class=thumb-empty>NO MEDIA</span>'"></div>`;
     }
     const pills = [e.dur, e.ratio, e.strength ? `強度:${e.strength}` : ''].filter(Boolean)
       .map(p => `<span class="pill">${p}</span>`).join('');
@@ -657,15 +660,33 @@ function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// Convert Google Drive share URL to direct/embed URL
+function driveUrl(url, type) {
+  if (!url) return '';
+  // Extract file ID from various Drive URL formats
+  const m = url.match(/\/d\/([a-zA-Z0-9_-]+)/) || url.match(/id=([a-zA-Z0-9_-]+)/);
+  if (!m) return url;
+  const id = m[1];
+  if (type === 'preview') return `https://drive.google.com/file/d/${id}/preview`;
+  if (type === 'thumb') return `https://drive.google.com/thumbnail?id=${id}&sz=w400`;
+  return url;
+}
+
+function isGDrive(url) {
+  return url && url.includes('drive.google.com');
+}
+
 // ── Modal ─────────────────────────────────────────────
 function openModal(idx) {
   const e = window._filtered[idx];
   if (!e) return;
   const [bcls, blabel] = CAT_MAP[e.cat] || ['cat-other','Other'];
   const isVid = e.media && /\.(mp4|webm|mov)/i.test(e.media);
+  const isGD = isGDrive(e.media);
   let mediaHtml = '';
   if (e.media) {
-    if (isVid) mediaHtml = `<div class="modal-media-wrap"><video controls src="${e.media}"></video></div>`;
+    if (isGD) mediaHtml = `<div class="modal-media-wrap"><iframe src="${driveUrl(e.media,'preview')}" style="width:100%;height:100%;border:none;" allowfullscreen></iframe></div>`;
+    else if (isVid) mediaHtml = `<div class="modal-media-wrap"><video controls src="${e.media}"></video></div>`;
     else mediaHtml = `<div class="modal-media-wrap"><img src="${e.media}" onerror="this.parentNode.style.display='none'"></div>`;
   }
   const pills = [e.dur, e.ratio, e.strength ? `強度:${e.strength}` : ''].filter(Boolean)
