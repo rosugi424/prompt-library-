@@ -525,11 +525,12 @@ async function loadData() {
       ratio:    r[idx('ratio')] || '',
       strength: r[idx('strength')] || '',
       media:    r[idx('media')] || '',
-      note:     r[idx('note')] || '',
-      tags:     (r[idx('tags')] || '').split(',').map(t=>t.trim()).filter(Boolean),
+      note:      r[idx('note')] || '',
+      mediatype: (r[idx('mediatype')] || '').toLowerCase().trim(),
+      tags:      (r[idx('tags')] || '').split(',').map(t=>t.trim()).filter(Boolean),
     })).filter(e => e.title && e.prompt).map(e => ({
       ...e,
-      isVideo: !!(e.media && (e.media.includes('drive.google.com') || /\.(mp4|webm|mov)/i.test(e.media)))
+      isVideo: e.mediatype === 'video' || (!e.mediatype && e.media && /\.(mp4|webm|mov)/i.test(e.media))
     }));
 
     renderTagBar();
