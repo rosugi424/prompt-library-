@@ -87,31 +87,6 @@
   .reload-btn:hover { border-color: var(--border-hover); color: var(--text); }
 
   /* Tabs */
-  .tabs {
-    display: flex;
-    gap: 0;
-    padding: 1rem 2rem 0;
-    border-bottom: 1px solid var(--border);
-    overflow-x: auto;
-  }
-  .tab {
-    font-family: var(--mono);
-    font-size: 11px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    padding: 8px 20px;
-    border: none;
-    background: transparent;
-    color: var(--muted);
-    cursor: pointer;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -1px;
-    transition: all 0.2s;
-    white-space: nowrap;
-  }
-  .tab:hover { color: var(--text); }
-  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
-
   /* Grid */
   main { padding: 1.5rem 2rem; }
   .grid {
@@ -375,6 +350,31 @@
   }
   .config-btn:hover { opacity: 0.85; }
 
+  .tabs {
+    display: flex;
+    gap: 0;
+    padding: 1rem 2rem 0;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+  }
+  .tab {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 8px 20px;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
   .tag-filter-bar {
     padding: 0.75rem 2rem;
     display: flex;
@@ -427,11 +427,9 @@
 </header>
 
 <div class="tabs">
-  <button class="tab active" data-cat="all" onclick="setTab(this)">すべて</button>
-  <button class="tab" data-cat="motion" onclick="setTab(this)">モーション</button>
-  <button class="tab" data-cat="char" onclick="setTab(this)">キャラクター</button>
-  <button class="tab" data-cat="scene" onclick="setTab(this)">シーン・背景</button>
-  <button class="tab" data-cat="other" onclick="setTab(this)">その他</button>
+  <button class="tab active" data-type="all" onclick="setTab(this)">すべて</button>
+  <button class="tab" data-type="video" onclick="setTab(this)">動画</button>
+  <button class="tab" data-type="image" onclick="setTab(this)">画像</button>
 </div>
 
 <div class="tag-filter-bar" id="tag-bar">
@@ -529,7 +527,10 @@ async function loadData() {
       media:    r[idx('media')] || '',
       note:     r[idx('note')] || '',
       tags:     (r[idx('tags')] || '').split(',').map(t=>t.trim()).filter(Boolean),
-    })).filter(e => e.title && e.prompt);
+    })).filter(e => e.title && e.prompt).map(e => ({
+      ...e,
+      isVideo: !!(e.media && (e.media.includes('drive.google.com') || /\.(mp4|webm|mov)/i.test(e.media)))
+    }));
 
     renderTagBar();
     renderGrid();
@@ -570,7 +571,7 @@ function parseCSV(text) {
 function setTab(el) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
-  currentTab = el.dataset.cat;
+  currentTab = el.dataset.type;
   selectedTags.clear();
   renderTagBar();
   renderGrid();
@@ -584,7 +585,8 @@ function renderTagBar() {
   // Collect all tags from current category
   const tagCounts = {};
   entries.forEach(e => {
-    if (currentTab !== 'all' && e.cat !== currentTab) return;
+    if (currentTab === 'video' && !e.isVideo) return;
+    if (currentTab === 'image' && e.isVideo) return;
     e.tags.forEach(t => { if (t) tagCounts[t] = (tagCounts[t] || 0) + 1; });
   });
   const tags = Object.keys(tagCounts).sort();
@@ -606,7 +608,8 @@ function renderGrid() {
   const q = document.getElementById('search').value.toLowerCase();
 
   const list = entries.filter(e => {
-    if (currentTab !== 'all' && e.cat !== currentTab) return false;
+    if (currentTab === 'video' && !e.isVideo) return false;
+    if (currentTab === 'image' && e.isVideo) return false;
     if (q) {
       const haystack = [e.title, e.prompt, e.note, e.tags.join(' ')].join(' ').toLowerCase();
       if (!haystack.includes(q)) return false;
