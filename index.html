@@ -483,9 +483,13 @@ async function loadData() {
       if (text.includes('"status":"error"') || text.includes("You need to enable")) continue;
       const json = JSON.parse(text.replace(/^.*?({.+})\s*\);?\s*$/, '$1'));
       if (!json.table) continue;
-      const rows = json.table.rows || [];
-      const cols = json.table.cols.map(c => c.label.toLowerCase().trim());
-
+      let rows = json.table.rows || [];
+      let cols = json.table.cols.map(c => c.label.toLowerCase().trim());
+      if (json.table.parsedNumHeaders === 0 && rows.length > 0) {
+        const hr = rows[0];
+        cols = (hr.c || []).map(c => c ? (c.v||'').toString().toLowerCase().trim() : '');
+        rows = rows.slice(1);
+      }
       const idx = k => cols.indexOf(k);
       entries = rows.map(r => ({
         title:    cell(r, idx('title')),
