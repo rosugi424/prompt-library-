@@ -504,8 +504,7 @@ async function loadData() {
   area.innerHTML = '<div class="loading">LOADING...</div>';
 
   // Use CSV export URL (works with public sheets, no CORS issues)
-  const gid = '0'; // default first sheet
-  const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
+  const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`;
   try {
     const res = await fetch(url);
     if (!res.ok) throw new Error('fetch failed');
@@ -528,7 +527,7 @@ async function loadData() {
       note:      r[idx('note')] || '',
       mediatype: (r[idx('mediatype')] || '').toLowerCase().trim(),
       tags:      (r[idx('tags')] || '').split(',').map(t=>t.trim()).filter(Boolean),
-    })).filter(e => e.title && e.prompt).map(e => ({
+    })).filter(e => e.title).map(e => ({
       ...e,
       isVideo: e.mediatype === 'video' || (!e.mediatype && e.media && /\.(mp4|webm|mov)/i.test(e.media))
     }));
